@@ -12,13 +12,23 @@ public class GameController {
     private final GameState gameState;
     private final GamePanel panel;
     private Timer timer;
-    private static final int DELAY = 100;
+    private static final int DEFAULT_DELAY = 100;
+    private int currentDelay;
+    private boolean isSpeedBoostActive;
+    private Timer speedBoostTimer;
+
+    // 特效定时器
+    private Timer effectTimer;
+    private String activeEffect;
+    private Point effectPosition;
 
     public GameController(Snake snake, Food food, GameState gameState, GamePanel panel) {
         this.snake = snake;
         this.food = food;
         this.gameState = gameState;
         this.panel = panel;
+        this.isSpeedBoostActive = false;
+        this.activeEffect = "";
     }
 
     public void startGame(int width, int height, int unitSize) {
@@ -28,13 +38,60 @@ public class GameController {
         gameState.reset();
         food.spawn(width, height, unitSize, snake.getBody());
 
-        if (timer != null) timer.stop();
-        timer = new Timer(DELAY, _ -> gameLoop(width, height, unitSize));
-        timer.start();
+        currentDelay = DEFAULT_DELAY;
+        startTimer();
 
-        // 播放背景音乐
         SoundManager.getInstance().playBackgroundMusic("/com/snakegame/resources/bgm.wav");
     }
+
+    private void startTimer() {
+        if (timer != null) timer.stop();
+        timer = new Timer(currentDelay, _ -> gameLoop(GamePanel.WIDTH, GamePanel.HEIGHT, GamePanel.UNIT_SIZE));
+        timer.start();
+    }
+
+    public void activateSpeedBoost(int durationMs) {
+        if (isSpeedBoostActive) return;
+
+        isSpeedBoostActive = true;
+        int originalDelay = currentDelay;
+        currentDelay = Math.max(30, currentDelay / 2);
+        timer.setDelay(currentDelay);
+
+        if (speedBoostTimer != null) speedBoostTimer.stop();
+        speedBoostTimer = new Timer(durationMs, _ -> {
+            currentDelay = originalDelay;
+            timer.setDelay(currentDelay);
+            isSpeedBoostActive = false;
+            speedBoostTimer.stop();
+        });
+        speedBoostTimer.setRepeats(false);
+        speedBoostTimer.start();
+    }
+
+    /**
+     * 触发特效
+     * @param effectType 特效类型：GOLDEN, BOMB
+     * @param position 特效位置
+     */
+    public void triggerEffect(String effectType, Point position) {
+        activeEffect = effectType;
+        effectPosition = position;
+        panel.repaint();
+
+        if (effectTimer != null) effectTimer.stop();
+        effectTimer = new Timer(300, _ -> {
+            activeEffect = "";
+            effectPosition = null;
+            panel.repaint();
+            effectTimer.stop();
+        });
+        effectTimer.setRepeats(false);
+        effectTimer.start();
+    }
+
+    public String getActiveEffect() { return activeEffect; }
+    public Point getEffectPosition() { return effectPosition; }
 
     private void gameLoop(int width, int height, int unitSize) {
         if (gameState.isRunning() && !gameState.isPaused()) {
@@ -42,6 +99,8 @@ public class GameController {
             if (checkCollisions(width, height)) {
                 gameState.setRunning(false);
                 timer.stop();
+                if (speedBoostTimer != null) speedBoostTimer.stop();
+                if (effectTimer != null) effectTimer.stop();
             }
             panel.repaint();
         }
@@ -51,15 +110,37 @@ public class GameController {
         snake.setDirection(snake.getNextDirection());
         Point newHead = calculateNewHead(unitSize);
 
-        Point eatenFood = food.checkFoodCollision(newHead);
+        FoodItem eatenFood = food.checkFoodCollision(newHead);
         boolean ate = (eatenFood != null);
 
         if (ate) {
-            gameState.addScore();
-            snake.addGrowth(2);  // 吃一个食物身体增长2格
+            FoodType type = eatenFood.getType();
+            Point foodPos = eatenFood.getPosition();
+
+            // 应用食物效果
+            gameState.addScore(type.getScoreValue());
+
+            if (type.getGrowthValue() > 0) {
+                snake.addGrowth(type.getGrowthValue());
+                // 金色食物触发金色特效
+                if (type == FoodType.GOLDEN) {
+                    triggerEffect("GOLDEN", foodPos);
+                }
+            } else if (type.getGrowthValue() < 0) {
+                // 炸弹食物触发爆炸特效
+                triggerEffect("BOMB", foodPos);
+                for (int i = 0; i < -type.getGrowthValue(); i++) {
+                    snake.removeTail();
+                }
+            }
+
+            // 星星食物触发加速
+            if (type == FoodType.STAR) {
+                activateSpeedBoost(3000);
+            }
+
             food.removeFood(eatenFood);
 
-            // 如果食物不够，补充新食物
             if (food.getRemainingFoodCount() == 0) {
                 food.spawn(width, height, unitSize, snake.getBody());
             }
@@ -90,6 +171,10 @@ public class GameController {
     }
 
     public void restart(int width, int height, int unitSize) {
+        if (speedBoostTimer != null) speedBoostTimer.stop();
+        if (effectTimer != null) effectTimer.stop();
+        isSpeedBoostActive = false;
+        activeEffect = "";
         startGame(width, height, unitSize);
     }
 
@@ -111,4 +196,6 @@ public class GameController {
             }
         }
     }
+
+    public boolean isSpeedBoostActive() { return isSpeedBoostActive; }
 }

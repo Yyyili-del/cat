@@ -33,14 +33,11 @@ public class SoundManager {
                 bgmClip.loop(Clip.LOOP_CONTINUOUSLY);
                 bgmClip.start();
             } catch (Exception e) {
-                // 简单游戏，直接打印堆栈即可
                 e.printStackTrace();
             }
         }).start();
     }
 
-    // 如果不需要停止背景音乐，可以删除此方法；否则保留
-    @SuppressWarnings("unused")
     public void stopBackgroundMusic() {
         if (bgmClip != null && bgmClip.isRunning()) {
             bgmClip.stop();

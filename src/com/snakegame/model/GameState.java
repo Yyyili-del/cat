@@ -17,14 +17,18 @@ public class GameState {
         this.score = 0;
     }
 
-    // Getters and Setters（仅保留实际使用的）
+    public void addScore() {
+        this.score++;
+    }
+
+    public void addScore(int amount) {
+        this.score += amount;
+        if (this.score < 0) this.score = 0;
+    }
+
     public boolean isRunning() { return running; }
     public void setRunning(boolean running) { this.running = running; }
     public boolean isPaused() { return paused; }
     public void setPaused(boolean paused) { this.paused = paused; }
     public int getScore() { return score; }
-    public void addScore() { this.score++; }
-
-    // 移除未使用的 setScore(int) 方法
-    // 移除逻辑错误的 reset(int score) 方法
 }

@@ -40,6 +40,12 @@ public class Snake {
         this.growthPending += amount;
     }
 
+    public void removeTail() {
+        if (body.size() > 3) {
+            body.removeLast();
+        }
+    }
+
     public Color getBodyColor(int index, int totalLength) {
         float ratio = (float) index / totalLength;
         if (index == 0) {
@@ -52,7 +58,6 @@ public class Snake {
         }
     }
 
-    // Getters
     public LinkedList<Point> getBody() { return body; }
     public Point getHead() { return body.getFirst(); }
     public char getDirection() { return direction; }
@@ -60,6 +65,4 @@ public class Snake {
     public char getNextDirection() { return nextDirection; }
     public void setNextDirection(char nextDir) { this.nextDirection = nextDir; }
     public int getLength() { return body.size(); }
-
-    // 删除未使用的 getGrowthPending 和 setGrowthPending
 }
