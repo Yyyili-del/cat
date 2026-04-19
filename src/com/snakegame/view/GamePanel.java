@@ -326,6 +326,13 @@ public class GamePanel extends JPanel {
             g.setColor(Color.BLACK);
             g.drawString("🛡️ INVINCIBLE!", WIDTH - 110, 58);
         }
+        if (controller != null && controller.isSpeedDecreased()) {
+            g2d.setColor(new Color(100, 100, 255, 200));
+            g2d.fillRoundRect(WIDTH - 115, 70, 110, 25, 10, 10);
+            g.setFont(new Font(MONOSPACED_FONT, Font.BOLD, 11));
+            g.setColor(Color.WHITE);
+            g.drawString("🐢 SLOWED!", WIDTH - 110, 88);
+        }
     }
 
     private void drawPaused(Graphics g) {

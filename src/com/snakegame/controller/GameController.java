@@ -7,7 +7,6 @@ import javax.swing.*;
 import java.awt.Point;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.LinkedList;   // 添加这一行解决 LinkedList 无法解析的问题
 
 public class GameController {
     private final Snake snake;
@@ -18,7 +17,9 @@ public class GameController {
     private static final int DEFAULT_DELAY = 100;
     private int currentDelay;
     private boolean isSpeedBoostActive;
+    private boolean isSpeedDecreased;      // 新增：减速状态
     private Timer speedBoostTimer;
+    private Timer decreaseTimer;           // 新增：减速恢复计时器
     private Timer effectTimer;
     private String activeEffect;
     private Point effectPosition;
@@ -31,6 +32,7 @@ public class GameController {
         this.gameState = gameState;
         this.panel = panel;
         this.isSpeedBoostActive = false;
+        this.isSpeedDecreased = false;
         this.activeEffect = "";
         this.isInvincible = false;
     }
@@ -57,21 +59,12 @@ public class GameController {
         timer.start();
     }
 
-    public void activateInvincible(int durationMs) {
-        if (isInvincible) return;
-        isInvincible = true;
-        if (invincibleTimer != null) invincibleTimer.stop();
-        invincibleTimer = new Timer(durationMs, new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                isInvincible = false;
-                invincibleTimer.stop();
-            }
-        });
-        invincibleTimer.setRepeats(false);
-        invincibleTimer.start();
-    }
-
+    // 加速效果（速度加倍）
     public void activateSpeedBoost(int durationMs) {
+        if (isSpeedDecreased) {
+            // 如果正在减速，先恢复速度
+            restoreNormalSpeed();
+        }
         if (isSpeedBoostActive) return;
         isSpeedBoostActive = true;
         final int originalDelay = currentDelay;
@@ -88,6 +81,58 @@ public class GameController {
         });
         speedBoostTimer.setRepeats(false);
         speedBoostTimer.start();
+    }
+
+    // 减速效果（速度减半）
+    public void activateSpeedDecrease(int durationMs) {
+        if (isSpeedBoostActive) {
+            // 如果正在加速，先恢复速度
+            restoreNormalSpeed();
+        }
+        if (isSpeedDecreased) return;
+        isSpeedDecreased = true;
+        final int originalDelay = currentDelay;
+        currentDelay = Math.min(200, currentDelay * 2);  // 速度减半，最大延迟200ms
+        timer.setDelay(currentDelay);
+        if (decreaseTimer != null) decreaseTimer.stop();
+        decreaseTimer = new Timer(durationMs, new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                currentDelay = originalDelay;
+                timer.setDelay(currentDelay);
+                isSpeedDecreased = false;
+                decreaseTimer.stop();
+            }
+        });
+        decreaseTimer.setRepeats(false);
+        decreaseTimer.start();
+    }
+
+    // 恢复默认速度（用于互斥）
+    private void restoreNormalSpeed() {
+        if (isSpeedBoostActive) {
+            if (speedBoostTimer != null) speedBoostTimer.stop();
+            isSpeedBoostActive = false;
+        }
+        if (isSpeedDecreased) {
+            if (decreaseTimer != null) decreaseTimer.stop();
+            isSpeedDecreased = false;
+        }
+        currentDelay = DEFAULT_DELAY;
+        timer.setDelay(currentDelay);
+    }
+
+    public void activateInvincible(int durationMs) {
+        if (isInvincible) return;
+        isInvincible = true;
+        if (invincibleTimer != null) invincibleTimer.stop();
+        invincibleTimer = new Timer(durationMs, new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                isInvincible = false;
+                invincibleTimer.stop();
+            }
+        });
+        invincibleTimer.setRepeats(false);
+        invincibleTimer.start();
     }
 
     public void triggerEffect(String effectType, Point position) {
@@ -110,6 +155,8 @@ public class GameController {
     public String getActiveEffect() { return activeEffect; }
     public Point getEffectPosition() { return effectPosition; }
     public boolean isInvincible() { return isInvincible; }
+    public boolean isSpeedBoostActive() { return isSpeedBoostActive; }
+    public boolean isSpeedDecreased() { return isSpeedDecreased; }
 
     private void gameLoop(int width, int height, int unitSize) {
         if (gameState.isRunning() && !gameState.isPaused()) {
@@ -118,6 +165,7 @@ public class GameController {
                 gameState.setRunning(false);
                 timer.stop();
                 if (speedBoostTimer != null) speedBoostTimer.stop();
+                if (decreaseTimer != null) decreaseTimer.stop();
                 if (effectTimer != null) effectTimer.stop();
                 if (invincibleTimer != null) invincibleTimer.stop();
             }
@@ -147,6 +195,8 @@ public class GameController {
                 for (int i = 0; i < -type.getGrowthValue(); i++) {
                     snake.removeTail();
                 }
+                // 炸弹食物触发减速效果（持续3秒）
+                activateSpeedDecrease(3000);
             }
 
             if (type == FoodType.STAR) {
@@ -180,7 +230,7 @@ public class GameController {
         if (head.x < 0 || head.x >= width || head.y < 0 || head.y >= height) {
             return true;
         }
-        LinkedList<Point> body = snake.getBody();   // 现在 LinkedList 已导入，可以正常解析
+        java.util.LinkedList<Point> body = snake.getBody();
         for (int i = 1; i < snake.getLength(); i++) {
             if (head.equals(body.get(i))) {
                 return true;
@@ -191,9 +241,11 @@ public class GameController {
 
     public void restart(int width, int height, int unitSize) {
         if (speedBoostTimer != null) speedBoostTimer.stop();
+        if (decreaseTimer != null) decreaseTimer.stop();
         if (effectTimer != null) effectTimer.stop();
         if (invincibleTimer != null) invincibleTimer.stop();
         isSpeedBoostActive = false;
+        isSpeedDecreased = false;
         isInvincible = false;
         activeEffect = "";
         startGame(width, height, unitSize);
@@ -217,6 +269,4 @@ public class GameController {
             }
         }
     }
-
-    public boolean isSpeedBoostActive() { return isSpeedBoostActive; }
 }
