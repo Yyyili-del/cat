@@ -4,12 +4,12 @@ import java.awt.Point;
 import java.util.*;
 
 public class Food {
-    private List<FoodItem> foodList;
-    private Random random;
+    private final List<FoodItem> foodList;
+    private final Random random;
     private static final int MAX_FOOD = 5;
 
     public Food() {
-        this.foodList = new ArrayList<>();
+        this.foodList = new ArrayList<FoodItem>();
         this.random = new Random();
     }
 
@@ -30,8 +30,21 @@ public class Food {
             int foodY = random.nextInt(height / unitSize) * unitSize;
             Point position = new Point(foodX, foodY);
 
-            boolean collidesWithSnake = snakeBody.stream().anyMatch(p -> p.equals(position));
-            boolean collidesWithFood = foodList.stream().anyMatch(f -> f.getPosition().equals(position));
+            boolean collidesWithSnake = false;
+            for (Point p : snakeBody) {
+                if (p.equals(position)) {
+                    collidesWithSnake = true;
+                    break;
+                }
+            }
+
+            boolean collidesWithFood = false;
+            for (FoodItem f : foodList) {
+                if (f.getPosition().equals(position)) {
+                    collidesWithFood = true;
+                    break;
+                }
+            }
 
             if (!collidesWithSnake && !collidesWithFood) {
                 FoodType type = getRandomFoodType();

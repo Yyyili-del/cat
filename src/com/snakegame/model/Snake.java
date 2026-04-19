@@ -11,7 +11,7 @@ public class Snake {
     private int growthPending;
 
     public Snake() {
-        this.body = new LinkedList<>();
+        this.body = new LinkedList<Point>();
         this.direction = 'R';
         this.nextDirection = 'R';
         this.growthPending = 0;

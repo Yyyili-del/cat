@@ -12,7 +12,6 @@ public class KeyHandler extends KeyAdapter {
         this.restartAction = restartAction;
     }
 
-    @Override
     public void keyPressed(KeyEvent e) {
         switch (e.getKeyCode()) {
             case KeyEvent.VK_P:
@@ -32,6 +31,8 @@ public class KeyHandler extends KeyAdapter {
                 break;
             case KeyEvent.VK_RIGHT:
                 controller.changeDirection('R');
+                break;
+            default:
                 break;
         }
     }

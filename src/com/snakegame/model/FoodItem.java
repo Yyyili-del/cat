@@ -3,8 +3,8 @@ package com.snakegame.model;
 import java.awt.Point;
 
 public class FoodItem {
-    private Point position;
-    private FoodType type;
+    private final Point position;
+    private final FoodType type;
 
     public FoodItem(Point position, FoodType type) {
         this.position = position;

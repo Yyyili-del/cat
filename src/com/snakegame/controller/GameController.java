@@ -5,6 +5,9 @@ import com.snakegame.view.GamePanel;
 import com.snakegame.utils.SoundManager;
 import javax.swing.*;
 import java.awt.Point;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.LinkedList;   // 添加这一行解决 LinkedList 无法解析的问题
 
 public class GameController {
     private final Snake snake;
@@ -16,11 +19,11 @@ public class GameController {
     private int currentDelay;
     private boolean isSpeedBoostActive;
     private Timer speedBoostTimer;
-
-    // 特效定时器
     private Timer effectTimer;
     private String activeEffect;
     private Point effectPosition;
+    private boolean isInvincible;
+    private Timer invincibleTimer;
 
     public GameController(Snake snake, Food food, GameState gameState, GamePanel panel) {
         this.snake = snake;
@@ -29,6 +32,7 @@ public class GameController {
         this.panel = panel;
         this.isSpeedBoostActive = false;
         this.activeEffect = "";
+        this.isInvincible = false;
     }
 
     public void startGame(int width, int height, int unitSize) {
@@ -40,51 +44,64 @@ public class GameController {
 
         currentDelay = DEFAULT_DELAY;
         startTimer();
-
         SoundManager.getInstance().playBackgroundMusic("/com/snakegame/resources/bgm.wav");
     }
 
     private void startTimer() {
         if (timer != null) timer.stop();
-        timer = new Timer(currentDelay, _ -> gameLoop(GamePanel.WIDTH, GamePanel.HEIGHT, GamePanel.UNIT_SIZE));
+        timer = new Timer(currentDelay, new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                gameLoop(GamePanel.WIDTH, GamePanel.HEIGHT, GamePanel.UNIT_SIZE);
+            }
+        });
         timer.start();
+    }
+
+    public void activateInvincible(int durationMs) {
+        if (isInvincible) return;
+        isInvincible = true;
+        if (invincibleTimer != null) invincibleTimer.stop();
+        invincibleTimer = new Timer(durationMs, new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                isInvincible = false;
+                invincibleTimer.stop();
+            }
+        });
+        invincibleTimer.setRepeats(false);
+        invincibleTimer.start();
     }
 
     public void activateSpeedBoost(int durationMs) {
         if (isSpeedBoostActive) return;
-
         isSpeedBoostActive = true;
-        int originalDelay = currentDelay;
+        final int originalDelay = currentDelay;
         currentDelay = Math.max(30, currentDelay / 2);
         timer.setDelay(currentDelay);
-
         if (speedBoostTimer != null) speedBoostTimer.stop();
-        speedBoostTimer = new Timer(durationMs, _ -> {
-            currentDelay = originalDelay;
-            timer.setDelay(currentDelay);
-            isSpeedBoostActive = false;
-            speedBoostTimer.stop();
+        speedBoostTimer = new Timer(durationMs, new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                currentDelay = originalDelay;
+                timer.setDelay(currentDelay);
+                isSpeedBoostActive = false;
+                speedBoostTimer.stop();
+            }
         });
         speedBoostTimer.setRepeats(false);
         speedBoostTimer.start();
     }
 
-    /**
-     * 触发特效
-     * @param effectType 特效类型：GOLDEN, BOMB
-     * @param position 特效位置
-     */
     public void triggerEffect(String effectType, Point position) {
         activeEffect = effectType;
         effectPosition = position;
         panel.repaint();
-
         if (effectTimer != null) effectTimer.stop();
-        effectTimer = new Timer(300, _ -> {
-            activeEffect = "";
-            effectPosition = null;
-            panel.repaint();
-            effectTimer.stop();
+        effectTimer = new Timer(300, new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                activeEffect = "";
+                effectPosition = null;
+                panel.repaint();
+                effectTimer.stop();
+            }
         });
         effectTimer.setRepeats(false);
         effectTimer.start();
@@ -92,15 +109,17 @@ public class GameController {
 
     public String getActiveEffect() { return activeEffect; }
     public Point getEffectPosition() { return effectPosition; }
+    public boolean isInvincible() { return isInvincible; }
 
     private void gameLoop(int width, int height, int unitSize) {
         if (gameState.isRunning() && !gameState.isPaused()) {
             move(width, height, unitSize);
-            if (checkCollisions(width, height)) {
+            if (!isInvincible && checkCollisions(width, height)) {
                 gameState.setRunning(false);
                 timer.stop();
                 if (speedBoostTimer != null) speedBoostTimer.stop();
                 if (effectTimer != null) effectTimer.stop();
+                if (invincibleTimer != null) invincibleTimer.stop();
             }
             panel.repaint();
         }
@@ -109,63 +128,63 @@ public class GameController {
     private void move(int width, int height, int unitSize) {
         snake.setDirection(snake.getNextDirection());
         Point newHead = calculateNewHead(unitSize);
-
         FoodItem eatenFood = food.checkFoodCollision(newHead);
         boolean ate = (eatenFood != null);
 
         if (ate) {
             FoodType type = eatenFood.getType();
             Point foodPos = eatenFood.getPosition();
-
-            // 应用食物效果
             gameState.addScore(type.getScoreValue());
 
             if (type.getGrowthValue() > 0) {
                 snake.addGrowth(type.getGrowthValue());
-                // 金色食物触发金色特效
                 if (type == FoodType.GOLDEN) {
                     triggerEffect("GOLDEN", foodPos);
+                    activateInvincible(3000);
                 }
             } else if (type.getGrowthValue() < 0) {
-                // 炸弹食物触发爆炸特效
                 triggerEffect("BOMB", foodPos);
                 for (int i = 0; i < -type.getGrowthValue(); i++) {
                     snake.removeTail();
                 }
             }
 
-            // 星星食物触发加速
             if (type == FoodType.STAR) {
                 activateSpeedBoost(3000);
             }
 
             food.removeFood(eatenFood);
-
             if (food.getRemainingFoodCount() == 0) {
                 food.spawn(width, height, unitSize, snake.getBody());
             }
         }
-
         snake.moveAndGrow(newHead, ate);
     }
 
     private Point calculateNewHead(int unitSize) {
         Point head = snake.getHead();
-        int newX = head.x, newY = head.y;
+        int newX = head.x;
+        int newY = head.y;
         switch (snake.getDirection()) {
             case 'U': newY -= unitSize; break;
             case 'D': newY += unitSize; break;
             case 'L': newX -= unitSize; break;
             case 'R': newX += unitSize; break;
+            default: break;
         }
         return new Point(newX, newY);
     }
 
     private boolean checkCollisions(int width, int height) {
         Point head = snake.getHead();
-        if (head.x < 0 || head.x >= width || head.y < 0 || head.y >= height) return true;
+        if (head.x < 0 || head.x >= width || head.y < 0 || head.y >= height) {
+            return true;
+        }
+        LinkedList<Point> body = snake.getBody();   // 现在 LinkedList 已导入，可以正常解析
         for (int i = 1; i < snake.getLength(); i++) {
-            if (head.equals(snake.getBody().get(i))) return true;
+            if (head.equals(body.get(i))) {
+                return true;
+            }
         }
         return false;
     }
@@ -173,7 +192,9 @@ public class GameController {
     public void restart(int width, int height, int unitSize) {
         if (speedBoostTimer != null) speedBoostTimer.stop();
         if (effectTimer != null) effectTimer.stop();
+        if (invincibleTimer != null) invincibleTimer.stop();
         isSpeedBoostActive = false;
+        isInvincible = false;
         activeEffect = "";
         startGame(width, height, unitSize);
     }
